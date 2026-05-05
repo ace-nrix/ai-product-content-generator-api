@@ -2,6 +2,7 @@
     "name": "attributes",
     "description": "Populates a single named product attribute by finding its value in the search results and matching it to the provided list of valid values. Handles automatic unit-of-measure (UOM) conversion.",
     "system_prompt_additions": "Your primary task is to find the value of the requested attribute_name from the product search data and match it to the closest entry in the validValues list.\n\nUOM Conversion rules:\n- If the value found in the source is in different units than inputUOM, convert it mathematically before matching.\n- Only select a value that appears in the validValues list. Never return a value not in that list.\n- If conversion results in a value between two valid options, choose the nearest one.\n- If you cannot determine the value at all, set selected_value to null.\n- Always set confidence to 'high', 'medium', or 'low' based on how clearly the value was found.",
+    "score_mode": "item",
     "output_schema": {
         "upc": "string — the product UPC/EAN code",
         "brand": "string — brand name",

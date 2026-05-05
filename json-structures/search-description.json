@@ -2,6 +2,7 @@
     "name": "search-description",
     "description": "SEO-optimized short description suitable for search result snippets, meta descriptions, and catalog search indexes.",
     "system_prompt_additions": "Write a single search_description string of 150-160 characters that is SEO-friendly. Naturally weave in the brand, product name, and 2-3 key specs or features. Avoid filler words. The description should read naturally to a human while including the most search-relevant keywords. Do not include price.",
+    "score_mode": "item",
     "output_schema": {
         "upc": "string — the product UPC/EAN code",
         "brand": "string — brand name",
