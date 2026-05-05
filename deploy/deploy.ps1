@@ -16,12 +16,12 @@
 $sep = "=" * 70
 
 # ── Config ────────────────────────────────────────────────────────────────────
-$AppName    = "ai-product-content-generator-api"
+$AppName    = "ai-pcg-api"
 $RemotePath = "/Workspace/ML_ai_squad/nrix/$AppName"
 $LocalPath  = (Resolve-Path "$PSScriptRoot\..").Path
 
 # File extensions to upload (Python source, config, requirements)
-$UploadExtensions = @('.py', '.txt', '.yaml', '.yml', '.json')
+$UploadExtensions = @('.py', '.txt', '.yaml', '.yml', '.json', '.env')
 
 # Directories to skip
 $ExcludeDirs = @('__pycache__', '.venv', '.git', 'deploy')
