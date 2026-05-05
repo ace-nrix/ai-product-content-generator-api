@@ -26,6 +26,10 @@ from tavily_service import TavilyService
 
 router = APIRouter()
 
+# Minimum Tavily score to consider a search result usable.
+# Results below this threshold lack enough product data for meaningful extraction.
+TAVILY_MIN_SCORE: float = 0.5
+
 # ── Shared service instances ──────────────────────────────────────────────────
 tavily = TavilyService()
 anthropic_svc = AnthropicService()
@@ -107,20 +111,21 @@ def _annotate_tavily_score(
                     "relevance": tavily_sources[i].get("score") if i < len(tavily_sources) else max(scores) if scores else None,
                 }
                 if isinstance(elem, str)
-                else elem
+                else None  # drop null/non-string elements from Claude
                 for i, elem in enumerate(field_value)
+                if elem is not None  # filter out nulls returned by Claude
             ]
 
     return result
 
 
-def _not_found_error(item: dict) -> dict[str, Any]:
-    """Return a structured error dict when Tavily finds no results for a product."""
+def _not_found_error(item: dict, reason: str = "No search results found for this product. Verify the UPC, brand, or manufacturer number and try again.") -> dict[str, Any]:
+    """Return a structured error dict when a product cannot be processed."""
     return {
         "upc": item.get("upc", ""),
         "brand": item.get("brand", ""),
         "mfg": item.get("mfg", ""),
-        "error": "No search results found for this product. Verify the UPC, brand, or manufacturer number and try again.",
+        "error": reason,
         "tavily_score": None,
     }
 
@@ -161,6 +166,17 @@ async def _run_attributes_pipeline(
 
         if not tavily_result.get("results"):
             results.append(_not_found_error(item_dict))
+            continue
+
+        top_score = max(
+            (r.get("score") for r in tavily_result["results"] if r.get("score") is not None),
+            default=None,
+        )
+        if top_score is not None and top_score < TAVILY_MIN_SCORE:
+            results.append(_not_found_error(
+                item_dict,
+                reason=f"Search results found but confidence too low (tavily_score={top_score:.4f}, minimum={TAVILY_MIN_SCORE}). Try providing more product identifiers.",
+            ))
             continue
 
         # Step 2 — Anthropic populates all attribute rows in one call
@@ -235,16 +251,23 @@ async def _run_pipeline(
                 detail=f"Tavily search failed for item {item}: {exc}",
             ) from exc
 
-    # Separate items with results from those with no results
+    # Separate items with results from those with no results / low confidence
     found_items = []
     found_tavily = []
-    not_found_indices: list[int] = []
+    not_found_indices: dict[int, str] = {}
     for i, (item, tv) in enumerate(zip(items, tavily_results)):
-        if tv.get("results"):
-            found_items.append(item)
-            found_tavily.append(tv)
-        else:
-            not_found_indices.append(i)
+        if not tv.get("results"):
+            not_found_indices[i] = "No search results found for this product. Verify the UPC, brand, or manufacturer number and try again."
+            continue
+        top_score = max(
+            (r.get("score") for r in tv["results"] if r.get("score") is not None),
+            default=None,
+        )
+        if top_score is not None and top_score < TAVILY_MIN_SCORE:
+            not_found_indices[i] = f"Search results found but confidence too low (tavily_score={top_score:.4f}, minimum={TAVILY_MIN_SCORE}). Try providing more product identifiers."
+            continue
+        found_items.append(item)
+        found_tavily.append(tv)
 
     # Step 2 — Anthropic: parallel extraction only for items with results
     if found_items:
@@ -273,10 +296,9 @@ async def _run_pipeline(
     # Merge back into original order, slotting error dicts for not-found items
     final_results: list[dict[str, Any]] = []
     found_iter = iter(annotated)
-    not_found_set = set(not_found_indices)
     for i, item in enumerate(items):
-        if i in not_found_set:
-            final_results.append(_not_found_error(item))
+        if i in not_found_indices:
+            final_results.append(_not_found_error(item, reason=not_found_indices[i]))
         else:
             final_results.append(next(found_iter))
 
