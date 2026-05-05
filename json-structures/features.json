@@ -2,6 +2,9 @@
     "name": "features",
     "description": "Complete bulleted list of all discoverable product features and specifications.",
     "system_prompt_additions": "Extract every identifiable feature, specification, and selling point. Each feature should be a concise phrase (not a full sentence) that names the feature and its benefit, e.g. 'GDDR6 memory — ultra-fast bandwidth for high-resolution gaming'. Include as many features as the source data supports. Do not duplicate or invent features not present in the search results.",
+    "score_list_fields": [
+        "features"
+    ],
     "output_schema": {
         "upc": "string — the product UPC/EAN code",
         "brand": "string — brand name",
