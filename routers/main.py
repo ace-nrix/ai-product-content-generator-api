@@ -65,19 +65,41 @@ class AttributeItem(BaseModel):
 def _annotate_tavily_score(
     result: dict[str, Any],
     tavily_result: dict,
+    structure_config: dict,
 ) -> dict[str, Any]:
     """
     Author: Noah Rix
-    Inject the top Tavily confidence score at the product (item) level.
-    The score represents the highest-confidence search result for this product
-    and applies to all content fields in the response.
+    Inject Tavily confidence scores into the result.
+
+    - tavily_score (item level): the highest score from all Tavily results for
+      this product — present on every response as a quick quality indicator.
+    - Per-element scoring (list fields): fields listed in score_list_fields have
+      each string element converted to {"text": <str>, "score": <float|null>}
+      using the positional Tavily result score (result[0] → element[0], etc.).
+      This gives each paragraph/item its own distinct confidence value based on
+      which source most likely informed it. Falls back to null when there are
+      more elements than Tavily results.
     """
-    scores = [
-        r.get("score")
-        for r in tavily_result.get("results", [])
-        if r.get("score") is not None
-    ]
+    tavily_sources = tavily_result.get("results", [])
+    scores = [r.get("score") for r in tavily_sources if r.get("score") is not None]
+
+    # Item-level: max score across all sources
     result["tavily_score"] = max(scores) if scores else None
+
+    # Per-element: positional score for designated list fields
+    for field in structure_config.get("score_list_fields", []):
+        field_value = result.get(field)
+        if isinstance(field_value, list):
+            result[field] = [
+                {
+                    "text": elem,
+                    "score": tavily_sources[i].get("score") if i < len(tavily_sources) else None,
+                }
+                if isinstance(elem, str)
+                else elem
+                for i, elem in enumerate(field_value)
+            ]
+
     return result
 
 
@@ -139,9 +161,10 @@ async def _run_pipeline(
             detail=f"Anthropic extraction failed: {exc}",
         ) from exc
 
-    # Step 3 — Annotate each result with Tavily confidence score
+    # Step 3 — Annotate each result with Tavily confidence scores
+    structure_config = anthropic_svc.load_structure_config(structure_name)
     final_results = [
-        _annotate_tavily_score(result, tavily_results[i])
+        _annotate_tavily_score(result, tavily_results[i], structure_config)
         for i, result in enumerate(final_results)
     ]
 
