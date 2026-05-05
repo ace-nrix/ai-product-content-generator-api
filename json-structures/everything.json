@@ -1,0 +1,21 @@
+{
+    "name": "everything",
+    "description": "Complete product content bundle: romance text, three marketing paragraphs, full feature list, and SEO search description — all in a single response.",
+    "system_prompt_additions": "Generate all content types in one pass. romance_text is a single 2-3 sentence marketing paragraph. romance_text_paragraphs contains exactly 3 distinct marketing paragraphs (intro, features, audience). features contains every identifiable feature with brief benefit explanations. search_description is an SEO-optimized snippet of 150-160 characters. Do not include price, availability, or store-specific references.",
+    "output_schema": {
+        "upc": "string — the product UPC/EAN code",
+        "brand": "string — brand name",
+        "model_number": "string | null — manufacturer part or model number",
+        "product_name": "string — full product name",
+        "romance_text": "string — 2-3 sentence marketing description",
+        "romance_text_paragraphs": [
+            "string — paragraph 1: product introduction and headline benefit",
+            "string — paragraph 2: key technical features in consumer language",
+            "string — paragraph 3: ideal use case and target audience"
+        ],
+        "features": [
+            "string — feature with brief benefit explanation (all features found)"
+        ],
+        "search_description": "string — 150-160 character SEO-optimized description"
+    }
+}

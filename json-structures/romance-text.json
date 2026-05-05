@@ -1,0 +1,12 @@
+{
+    "name": "romance-text",
+    "description": "Single compelling marketing paragraph for use in product listings and e-commerce descriptions.",
+    "system_prompt_additions": "Write in a persuasive, retail-friendly tone that highlights the product's core benefit and use case. The romance_text should be 2-3 sentences maximum — concise and engaging. Do not include price, availability, or store-specific references.",
+    "output_schema": {
+        "upc": "string — the product UPC/EAN code",
+        "brand": "string — brand name",
+        "model_number": "string | null — manufacturer part or model number",
+        "product_name": "string — full product name",
+        "romance_text": "string — 2-3 sentence marketing description highlighting key benefits"
+    }
+}

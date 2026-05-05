@@ -1,0 +1,9 @@
+# Databricks Apps deployment manifest
+# Author: Noah Rix
+# Starts the FastAPI application with uvicorn on host 0.0.0.0.
+# The PORT environment variable is injected by Databricks Apps at runtime.
+
+command:
+    - "sh"
+    - "-c"
+    - "uvicorn app:app --host 0.0.0.0 --port ${PORT:-8000}"
