@@ -44,25 +44,30 @@ class ProductItem(BaseModel):
     brand: str = Field(default="", description="Brand or manufacturer name")
 
 
+class AttributeRow(BaseModel):
+    """
+    Author: Noah Rix
+    A single row from Selling_Attributes — one attribute to populate per row.
+    """
+    attribute_cd: str = Field(default="", description="Attribute_Cd from Selling_Attributes")
+    attributeName: str = Field(description="Human-readable attribute name (e.g. 'Color Family')")
+    validValues: list[str] = Field(description="Allowed Attribute_Value_Tx candidates")
+    inputUOM: str = Field(default="", description="Unit_Of_Measure_Tx — empty if N/A")
+    multi_value_fl: bool = Field(default=False, description="Multi_Value_Fl")
+
+
 class AttributeItem(BaseModel):
     """
     Author: Noah Rix
-    Extended product item used by attribute endpoints. Maps directly to the
-    Ace_PCM_Golden_Copy.dbo.Selling_Attributes table schema:
-      Ace_Article_Num  → upc / mfg
-      Attribute_Cd     → attribute_cd
-      Attribute_Value_Tx is what Anthropic will populate (selected_value)
-      Unit_Of_Measure_Tx → inputUOM (optional — often NULL)
-      Multi_Value_Fl   → multi_value_fl
+    One product with all its Selling_Attributes rows bundled together.
+    Maps to: one Ace_Article_Num with N Attribute_Cd rows from the DB.
+    A single Tavily search is run per product; Anthropic populates every
+    attribute row in a single pass.
     """
     upc: str = Field(default="", description="Product UPC / EAN code (Ace_Article_Num)")
     mfg: str = Field(default="", description="Manufacturer item / part number")
     brand: str = Field(default="", description="Brand or manufacturer name")
-    attribute_cd: str = Field(default="", description="Attribute code from Selling_Attributes (e.g. '64878')")
-    attributeName: str = Field(description="Human-readable attribute name (e.g. 'Brand Name', 'Color Family')")
-    validValues: list[str] = Field(description="Allowed values Anthropic must select from (Attribute_Value_Tx candidates)")
-    inputUOM: str = Field(default="", description="Required output unit of measure — Unit_Of_Measure_Tx (empty if N/A)")
-    multi_value_fl: bool = Field(default=False, description="Whether multiple values are allowed — Multi_Value_Fl")
+    attributes: list[AttributeRow] = Field(description="All attribute rows to populate for this product")
 
 
 # ── Score annotation ──────────────────────────────────────────────────────────
@@ -106,6 +111,64 @@ def _annotate_tavily_score(
             ]
 
     return result
+
+
+# ── Attributes pipeline ───────────────────────────────────────────────────────
+
+async def _run_attributes_pipeline(
+    items: list[AttributeItem],
+) -> list[dict[str, Any]]:
+    """
+    Author: Noah Rix
+    Dedicated pipeline for the /attributes endpoint.
+    For each product item:
+      1. Run one Tavily search (sequential).
+      2. Send all attribute rows for that product to Anthropic in one call.
+      3. Annotate with tavily_score and return.
+    """
+    if not items:
+        return []
+
+    results: list[dict[str, Any]] = []
+
+    for item in items:
+        item_dict = item.model_dump()
+
+        # Step 1 — one Tavily search per product
+        try:
+            tavily_result = await tavily.search_product(
+                upc=item_dict.get("upc", ""),
+                brand=item_dict.get("brand", ""),
+                mfg=item_dict.get("mfg", ""),
+            )
+        except Exception as exc:
+            raise HTTPException(
+                status_code=502,
+                detail=f"Tavily search failed for item {item_dict}: {exc}",
+            ) from exc
+
+        # Step 2 — Anthropic populates all attribute rows in one call
+        try:
+            extracted = await anthropic_svc.extract_attributes(
+                tavily_result=tavily_result,
+                item_context=item_dict,
+            )
+        except Exception as exc:
+            raise HTTPException(
+                status_code=502,
+                detail=f"Anthropic attribute extraction failed: {exc}",
+            ) from exc
+
+        # Step 3 — item-level tavily_score
+        scores = [
+            r.get("score")
+            for r in tavily_result.get("results", [])
+            if r.get("score") is not None
+        ]
+        extracted["tavily_score"] = max(scores) if scores else None
+        results.append(extracted)
+
+    return results
 
 
 # ── Shared pipeline ───────────────────────────────────────────────────────────
@@ -262,21 +325,15 @@ async def generate_search_description(items: list[ProductItem]) -> list[dict[str
 async def generate_attributes(items: list[AttributeItem]) -> list[dict[str, Any]]:
     """
     Author: Noah Rix
-    Populate a specific named attribute for each product, selecting from a
-    provided list of valid values. Supports automatic UOM conversion.
+    Populate all Selling_Attributes rows for each product in one request.
 
-    Each item must include:
-      - attributeName: the attribute to find (e.g. "Width")
-      - validValues:   list of allowed selections (e.g. ["6 in", "8 in", "12 in"])
-      - inputUOM:      required output unit (e.g. "inches")
-
-    Anthropic converts the found value to inputUOM before matching it to the
-    validValues list, enabling on-the-fly unit conversions (feet → inches, etc.).
+    Each item represents one product (Ace_Article_Num) with a list of
+    attribute rows to populate. A single Tavily search is run per product
+    and Anthropic fills every attribute in one pass, returning:
+      - attribute_cd, attribute_name, selected_value, original_value_found,
+        input_uom, confidence, conversion_notes
     """
-    return await _run_pipeline(
-        items=[item.model_dump() for item in items],
-        structure_name="attributes",
-    )
+    return await _run_attributes_pipeline(items=items)
 
 
 @router.post("/everything", tags=["Product Content"])

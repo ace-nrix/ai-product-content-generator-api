@@ -213,6 +213,78 @@ class AnthropicService:
         ]
         return list(await asyncio.gather(*tasks))
 
+    async def extract_attributes(
+        self,
+        tavily_result: dict,
+        item_context: dict,
+    ) -> dict[str, Any]:
+        """
+        Author: Noah Rix
+        Populate all attribute rows for a single product in one Anthropic call.
+        Each row in item_context['attributes'] maps to a Selling_Attributes DB row.
+
+        Returns a dict with upc, brand, model_number, product_name, and an
+        'attributes' list where each entry has:
+            attribute_cd, attribute_name, selected_value, original_value_found,
+            input_uom, confidence, conversion_notes.
+        """
+        # Build source text from Tavily results
+        source_sections: list[str] = []
+        for result in tavily_result.get("results", []):
+            source_sections.append(
+                f"Source URL: {result.get('url', 'N/A')}\n"
+                f"Title: {result.get('title', 'N/A')}\n"
+                f"Content: {result.get('content', '')}"
+            )
+        source_text = "\n\n---\n\n".join(source_sections)
+
+        upc = item_context.get("upc", "")
+        brand = item_context.get("brand", "")
+        mfg = item_context.get("mfg", "")
+        attribute_rows = item_context.get("attributes", [])
+
+        # Build the attributes task list for the prompt
+        rows_text = json.dumps(attribute_rows, indent=2)
+
+        system_prompt = (
+            "You are a product data extractor for a retail catalog system.\n"
+            "You will receive a list of attribute rows to populate for a single product.\n"
+            "For each row, find the attribute value in the search results and match it to "
+            "the closest entry in that row's validValues list.\n\n"
+            "Rules:\n"
+            "- Respond with ONLY valid JSON. No explanation, no markdown, no code fences.\n"
+            "- Return a JSON object with: upc, brand, model_number, product_name, and an "
+            "'attributes' array — one entry per input attribute row, in the same order.\n"
+            "- Each attributes entry must have: attribute_cd, attribute_name, selected_value, "
+            "original_value_found, input_uom, confidence (high/medium/low), conversion_notes.\n"
+            "- selected_value MUST be from the row's validValues list or null.\n"
+            "- If inputUOM is provided and the found value is in different units, convert before matching.\n"
+            "- Use null for any field you cannot confidently determine."
+        )
+
+        user_message = (
+            f"Product:\n"
+            f"  UPC:   {upc}\n"
+            f"  Brand: {brand}\n"
+            f"  MFG#:  {mfg}\n\n"
+            f"Attribute rows to populate:\n{rows_text}\n\n"
+            f"Search Results:\n{source_text}"
+        )
+
+        message = await self.client.messages.create(
+            model=CLAUDE_MODEL,
+            max_tokens=MAX_TOKENS,
+            temperature=TEMPERATURE,
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_message}],
+        )
+
+        response_text = "".join(
+            block.text for block in message.content if hasattr(block, "text")
+        )
+
+        return self._parse_response(response_text)
+
     # ──────────────────────────────────────────────────────────────────────
     # Response parsing
     # ──────────────────────────────────────────────────────────────────────
