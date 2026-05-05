@@ -87,8 +87,9 @@ def _annotate_tavily_score(
       each string element converted to {"text": <str>, "score": <float|null>}
       using the positional Tavily result score (result[0] → element[0], etc.).
       This gives each paragraph/item its own distinct confidence value based on
-      which source most likely informed it. Falls back to null when there are
-      more elements than Tavily results.
+      which source most likely informed it. Falls back to the top score when
+      there are more elements than Tavily sources (e.g. features-10 has 10
+      features but only 3 Tavily sources).
     """
     tavily_sources = tavily_result.get("results", [])
     scores = [r.get("score") for r in tavily_sources if r.get("score") is not None]
@@ -103,7 +104,7 @@ def _annotate_tavily_score(
             result[field] = [
                 {
                     "text": elem,
-                    "score": tavily_sources[i].get("score") if i < len(tavily_sources) else None,
+                    "score": tavily_sources[i].get("score") if i < len(tavily_sources) else max(scores) if scores else None,
                 }
                 if isinstance(elem, str)
                 else elem
