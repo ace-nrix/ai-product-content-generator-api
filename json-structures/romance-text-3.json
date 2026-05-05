@@ -5,6 +5,7 @@
     "score_list_fields": [
         "romance_text_paragraphs"
     ],
+    "tavily_max_results": 3,
     "output_schema": {
         "upc": "string — the product UPC/EAN code",
         "brand": "string — brand name",

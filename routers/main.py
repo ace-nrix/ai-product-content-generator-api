@@ -199,6 +199,10 @@ async def _run_pipeline(
     if not items:
         return []
 
+    # Load config once to get tavily_max_results
+    structure_config = anthropic_svc.load_structure_config(structure_name)
+    max_results = structure_config.get("tavily_max_results", 3)
+
     # Step 1 — Tavily: sequential because Tavily does not support batch requests
     tavily_results: list[dict] = []
     for item in items:
@@ -207,6 +211,7 @@ async def _run_pipeline(
                 upc=item.get("upc", ""),
                 brand=item.get("brand", ""),
                 mfg=item.get("mfg", ""),
+                max_results=max_results,
             )
             tavily_results.append(result)
         except Exception as exc:
@@ -231,7 +236,6 @@ async def _run_pipeline(
         ) from exc
 
     # Step 3 — Annotate each result with Tavily confidence scores
-    structure_config = anthropic_svc.load_structure_config(structure_name)
     final_results = [
         _annotate_tavily_score(result, tavily_results[i], structure_config)
         for i, result in enumerate(final_results)

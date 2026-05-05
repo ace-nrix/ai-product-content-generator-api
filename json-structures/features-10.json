@@ -5,6 +5,7 @@
     "score_list_fields": [
         "features"
     ],
+    "tavily_max_results": 10,
     "output_schema": {
         "upc": "string — the product UPC/EAN code",
         "brand": "string — brand name",

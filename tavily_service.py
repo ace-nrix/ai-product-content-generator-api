@@ -77,6 +77,7 @@ class TavilyService:
         upc: str = "",
         brand: str = "",
         mfg: str = "",
+        max_results: int = 3,
     ) -> dict:
         """
         Author: Noah Rix
@@ -103,7 +104,7 @@ class TavilyService:
         query_parts.append("product specifications details features")
         query = " ".join(query_parts)
 
-        return await self.search(query)
+        return await self.search(query, max_results=max_results)
 
     # ──────────────────────────────────────────────────────────────────────
     # Content cleaning helpers (ported from ace-product-content-generator)
