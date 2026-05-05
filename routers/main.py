@@ -114,6 +114,17 @@ def _annotate_tavily_score(
     return result
 
 
+def _not_found_error(item: dict) -> dict[str, Any]:
+    """Return a structured error dict when Tavily finds no results for a product."""
+    return {
+        "upc": item.get("upc", ""),
+        "brand": item.get("brand", ""),
+        "mfg": item.get("mfg", ""),
+        "error": "No search results found for this product. Verify the UPC, brand, or manufacturer number and try again.",
+        "tavily_score": None,
+    }
+
+
 # ── Attributes pipeline ───────────────────────────────────────────────────────
 
 async def _run_attributes_pipeline(
@@ -147,6 +158,10 @@ async def _run_attributes_pipeline(
                 status_code=502,
                 detail=f"Tavily search failed for item {item_dict}: {exc}",
             ) from exc
+
+        if not tavily_result.get("results"):
+            results.append(_not_found_error(item_dict))
+            continue
 
         # Step 2 — Anthropic populates all attribute rows in one call
         try:
@@ -220,26 +235,50 @@ async def _run_pipeline(
                 detail=f"Tavily search failed for item {item}: {exc}",
             ) from exc
 
-    # Step 2 — Anthropic: parallel extraction across all items
-    try:
-        final_results = await anthropic_svc.batch_extract(
-            items=items,
-            tavily_results=tavily_results,
-            structure_name=structure_name,
-        )
-    except FileNotFoundError as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-    except Exception as exc:
-        raise HTTPException(
-            status_code=502,
-            detail=f"Anthropic extraction failed: {exc}",
-        ) from exc
+    # Separate items with results from those with no results
+    found_items = []
+    found_tavily = []
+    not_found_indices: list[int] = []
+    for i, (item, tv) in enumerate(zip(items, tavily_results)):
+        if tv.get("results"):
+            found_items.append(item)
+            found_tavily.append(tv)
+        else:
+            not_found_indices.append(i)
 
-    # Step 3 — Annotate each result with Tavily confidence scores
-    final_results = [
-        _annotate_tavily_score(result, tavily_results[i], structure_config)
-        for i, result in enumerate(final_results)
+    # Step 2 — Anthropic: parallel extraction only for items with results
+    if found_items:
+        try:
+            extracted_results = await anthropic_svc.batch_extract(
+                items=found_items,
+                tavily_results=found_tavily,
+                structure_name=structure_name,
+            )
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+        except Exception as exc:
+            raise HTTPException(
+                status_code=502,
+                detail=f"Anthropic extraction failed: {exc}",
+            ) from exc
+    else:
+        extracted_results = []
+
+    # Step 3 — Annotate found results with Tavily confidence scores
+    annotated = [
+        _annotate_tavily_score(result, found_tavily[i], structure_config)
+        for i, result in enumerate(extracted_results)
     ]
+
+    # Merge back into original order, slotting error dicts for not-found items
+    final_results: list[dict[str, Any]] = []
+    found_iter = iter(annotated)
+    not_found_set = set(not_found_indices)
+    for i, item in enumerate(items):
+        if i in not_found_set:
+            final_results.append(_not_found_error(item))
+        else:
+            final_results.append(next(found_iter))
 
     return final_results
 
