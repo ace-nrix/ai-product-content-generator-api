@@ -2,6 +2,9 @@
     "name": "features-10",
     "description": "Top 10 most important product features ranked by consumer relevance.",
     "system_prompt_additions": "Select and return EXACTLY 10 features. Prioritize by consumer impact: performance specs first, then build quality, then convenience features. Each feature should be a concise phrase naming the feature and its benefit. If fewer than 10 features are found in the source data, fill remaining slots with the best inferred general benefits — but do not fabricate specific numbers or specs.",
+    "score_list_fields": [
+        "features"
+    ],
     "output_schema": {
         "upc": "string — the product UPC/EAN code",
         "brand": "string — brand name",

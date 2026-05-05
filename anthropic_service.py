@@ -155,10 +155,14 @@ class AnthropicService:
             attr_name = item_context.get("attributeName", "")
             valid_values = item_context.get("validValues", [])
             input_uom = item_context.get("inputUOM", "")
+            attribute_cd = item_context.get("attribute_cd", "")
+            multi_value_fl = item_context.get("multi_value_fl", False)
 
             user_message += (
                 f"\n\nAttribute to populate: {attr_name}\n"
+                f"Attribute code (echo back as attribute_cd): {attribute_cd}\n"
                 f"Required output UOM: {input_uom}\n"
+                f"Multiple values allowed: {multi_value_fl}\n"
                 f"You MUST select selected_value from this list (convert units if needed):\n"
                 f"{json.dumps(valid_values, indent=2)}\n"
                 f"If the found value uses different units than '{input_uom}', convert it "

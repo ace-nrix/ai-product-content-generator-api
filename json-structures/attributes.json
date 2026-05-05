@@ -6,6 +6,7 @@
         "upc": "string — the product UPC/EAN code",
         "brand": "string — brand name",
         "model_number": "string | null — manufacturer part or model number",
+        "attribute_cd": "string | null — the attribute code echoed from input (e.g. Attribute_Cd)",
         "attribute_name": "string — the attribute being populated (echoed from input)",
         "selected_value": "string | null — the matched value from validValues after any UOM conversion",
         "original_value_found": "string | null — raw value as found in search results before conversion",

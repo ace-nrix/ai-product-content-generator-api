@@ -47,17 +47,22 @@ class ProductItem(BaseModel):
 class AttributeItem(BaseModel):
     """
     Author: Noah Rix
-    Extended product item used by attribute endpoints. Includes the attribute
-    name to populate, a list of valid values to choose from, and the required
-    output unit of measure. Anthropic will auto-convert to inputUOM if the
-    found value is in a different unit.
+    Extended product item used by attribute endpoints. Maps directly to the
+    Ace_PCM_Golden_Copy.dbo.Selling_Attributes table schema:
+      Ace_Article_Num  → upc / mfg
+      Attribute_Cd     → attribute_cd
+      Attribute_Value_Tx is what Anthropic will populate (selected_value)
+      Unit_Of_Measure_Tx → inputUOM (optional — often NULL)
+      Multi_Value_Fl   → multi_value_fl
     """
-    upc: str = Field(default="", description="Product UPC / EAN code")
+    upc: str = Field(default="", description="Product UPC / EAN code (Ace_Article_Num)")
     mfg: str = Field(default="", description="Manufacturer item / part number")
     brand: str = Field(default="", description="Brand or manufacturer name")
-    inputUOM: str = Field(description="Required output unit of measure (e.g. 'inches', 'lbs')")
-    attributeName: str = Field(description="Name of the attribute to populate (e.g. 'Width')")
-    validValues: list[str] = Field(description="Allowed values Anthropic must select from")
+    attribute_cd: str = Field(default="", description="Attribute code from Selling_Attributes (e.g. '64878')")
+    attributeName: str = Field(description="Human-readable attribute name (e.g. 'Brand Name', 'Color Family')")
+    validValues: list[str] = Field(description="Allowed values Anthropic must select from (Attribute_Value_Tx candidates)")
+    inputUOM: str = Field(default="", description="Required output unit of measure — Unit_Of_Measure_Tx (empty if N/A)")
+    multi_value_fl: bool = Field(default=False, description="Whether multiple values are allowed — Multi_Value_Fl")
 
 
 # ── Score annotation ──────────────────────────────────────────────────────────
