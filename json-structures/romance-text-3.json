@@ -2,10 +2,6 @@
     "name": "romance-text-3",
     "description": "Three marketing paragraphs providing a layered product narrative: what it is, what it does, and who it is for.",
     "system_prompt_additions": "Generate exactly 3 distinct marketing paragraphs. Paragraph 1: introduce the product and its headline benefit. Paragraph 2: highlight key technical features or specifications in consumer-friendly language. Paragraph 3: describe the ideal use case or target audience. Each paragraph should be 2-3 sentences. Do not include price, availability, or store-specific references.",
-    "score_mode": "list",
-    "score_list_fields": [
-        "romance_text_paragraphs"
-    ],
     "output_schema": {
         "upc": "string — the product UPC/EAN code",
         "brand": "string — brand name",

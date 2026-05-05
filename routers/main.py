@@ -65,43 +65,19 @@ class AttributeItem(BaseModel):
 def _annotate_tavily_score(
     result: dict[str, Any],
     tavily_result: dict,
-    structure_config: dict,
 ) -> dict[str, Any]:
     """
     Author: Noah Rix
-    Post-process a single Anthropic result dict by injecting the top Tavily
-    confidence score.
-
-    score_mode rules (driven by json-structures config):
-      - "item"  : add tavily_score at the top level of the result dict.
-      - "list"  : for each field in score_list_fields, transform every string
-                  element into {"text": <str>, "tavily_score": <score>}.
-      - "mixed" : apply both item-level and list-level rules.
+    Inject the top Tavily confidence score at the product (item) level.
+    The score represents the highest-confidence search result for this product
+    and applies to all content fields in the response.
     """
     scores = [
         r.get("score")
         for r in tavily_result.get("results", [])
         if r.get("score") is not None
     ]
-    top_score: float | None = max(scores) if scores else None
-
-    score_mode = structure_config.get("score_mode", "item")
-    list_fields: list[str] = structure_config.get("score_list_fields", [])
-
-    if score_mode in ("item", "mixed"):
-        result["tavily_score"] = top_score
-
-    if score_mode in ("list", "mixed"):
-        for field in list_fields:
-            field_value = result.get(field)
-            if isinstance(field_value, list):
-                result[field] = [
-                    {"text": elem, "tavily_score": top_score}
-                    if isinstance(elem, str)
-                    else {**elem, "tavily_score": top_score}
-                    for elem in field_value
-                ]
-
+    result["tavily_score"] = max(scores) if scores else None
     return result
 
 
@@ -163,10 +139,9 @@ async def _run_pipeline(
             detail=f"Anthropic extraction failed: {exc}",
         ) from exc
 
-    # Step 3 — Annotate each result with Tavily confidence scores
-    structure_config = anthropic_svc.load_structure_config(structure_name)
+    # Step 3 — Annotate each result with Tavily confidence score
     final_results = [
-        _annotate_tavily_score(result, tavily_results[i], structure_config)
+        _annotate_tavily_score(result, tavily_results[i])
         for i, result in enumerate(final_results)
     ]
 
