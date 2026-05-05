@@ -84,7 +84,7 @@ def _annotate_tavily_score(
     - tavily_score (item level): the highest score from all Tavily results for
       this product — present on every response as a quick quality indicator.
     - Per-element scoring (list fields): fields listed in score_list_fields have
-      each string element converted to {"text": <str>, "score": <float|null>}
+      each string element converted to {"text": <str>, "relevance": <float|null>}
       using the positional Tavily result score (result[0] → element[0], etc.).
       This gives each paragraph/item its own distinct confidence value based on
       which source most likely informed it. Falls back to the top score when
@@ -104,7 +104,7 @@ def _annotate_tavily_score(
             result[field] = [
                 {
                     "text": elem,
-                    "score": tavily_sources[i].get("score") if i < len(tavily_sources) else max(scores) if scores else None,
+                    "relevance": tavily_sources[i].get("score") if i < len(tavily_sources) else max(scores) if scores else None,
                 }
                 if isinstance(elem, str)
                 else elem

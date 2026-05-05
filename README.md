@@ -210,26 +210,28 @@ Present on **every endpoint response**. The highest score across all Tavily sour
 { "product_name": "...", "tavily_score": 0.9635 }
 ```
 
-### Per-element `score` (list level)
+### `relevance` (per-element)
 
-On endpoints that return arrays of generated content (`/features-10`, `/romance-text-3`, `romance_text_paragraphs` in `/everything`), each element also carries its own `score`.
+On endpoints that return arrays of generated content (`/features-10`, `/romance-text-3`, `romance_text_paragraphs` in `/everything`), each element carries a `relevance` field.
 
-**How it's calculated:** Tavily returns sources sorted by relevance. The first generated element is paired with `results[0].score`, the second with `results[1].score`, and so on. This is a _positional proxy_ — it reflects how confident the search was about the source most likely informing that element, not a per-sentence score from Claude. Elements beyond the available source count fall back to the top score.
+**How it's calculated:** Tavily returns its sources pre-sorted by relevance descending. Each generated element is paired with the Tavily source at the same position — element 0 gets `results[0].score`, element 1 gets `results[1].score`, and so on. This is a _positional proxy_: it reflects how relevant Tavily considered the source most likely informing that element, not a confidence score computed by Claude. Elements beyond the number of available sources fall back to the top score.
+
+In practice for `/features-10`: Claude reads all 10 sources simultaneously and ranks features by consumer importance — so feature 4 may actually draw from source 1. The `relevance` value still tells you how far down the search result list was needed to cover that positional slot, which serves as a useful data-freshness/source-quality signal for NIO to use as a threshold.
 
 ```json
 {
     "features": [
-        { "text": "16GB GDDR6 memory — high-res gaming",    "score": 0.8679 },
-        { "text": "4352 CUDA cores — parallel processing",  "score": 0.8663 },
-        { "text": "2535 MHz boost clock — max performance", "score": 0.8522 },
-        { "text": "DLSS 3 — AI-accelerated frame rates",    "score": 0.8614 },
+        { "text": "16GB GDDR6 memory — high-res gaming",    "relevance": 0.8679 },
+        { "text": "4352 CUDA cores — parallel processing",  "relevance": 0.8663 },
+        { "text": "2535 MHz boost clock — max performance", "relevance": 0.8522 },
+        { "text": "DLSS 3 — AI-accelerated frame rates",    "relevance": 0.8614 },
         ...
     ],
     "tavily_score": 0.8679
 }
 ```
 
-Each structure config controls how many Tavily sources are fetched via `tavily_max_results`. `features-10` requests 10 sources to give each feature its own distinct score; other endpoints default to 3.
+Each structure config controls how many Tavily sources are fetched via `tavily_max_results`. `features-10` requests 10 sources to give each feature its own distinct relevance value; other endpoints default to 3.
 
 ---
 
@@ -262,14 +264,14 @@ Each JSON file drives one endpoint. Editing a file immediately changes the outpu
 }
 ```
 
-| Key                       | Required | Description                                                    |
-| ------------------------- | -------- | -------------------------------------------------------------- |
-| `name`                    | yes      | Must match the filename stem                                   |
-| `description`             | yes      | Shown in docs                                                  |
-| `system_prompt_additions` | yes      | Appended to base Claude system prompt                          |
-| `output_schema`           | yes      | JSON schema Claude must follow                                 |
-| `tavily_max_results`      | no       | How many Tavily sources to fetch (default: 3)                  |
-| `score_list_fields`       | no       | Array field names whose string elements get per-element scores |
+| Key                       | Required | Description                                                                |
+| ------------------------- | -------- | -------------------------------------------------------------------------- |
+| `name`                    | yes      | Must match the filename stem                                               |
+| `description`             | yes      | Shown in docs                                                              |
+| `system_prompt_additions` | yes      | Appended to base Claude system prompt                                      |
+| `output_schema`           | yes      | JSON schema Claude must follow                                             |
+| `tavily_max_results`      | no       | How many Tavily sources to fetch (default: 3)                              |
+| `score_list_fields`       | no       | Array field names whose string elements get per-element `relevance` scores |
 
 ---
 
